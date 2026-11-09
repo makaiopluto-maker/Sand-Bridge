@@ -1,0 +1,1148 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+  <title>가루 테트리스</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=IBM+Plex+Sans+KR:wght@400;500;600&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --ink: #f4f7fb;
+      --muted: rgba(240, 248, 255, 0.72);
+      --panel: rgba(8, 14, 22, 0.55);
+      --stroke: rgba(255, 255, 255, 0.88);
+      --accent: #5ee7ff;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+      height: 100%;
+      overflow: hidden;
+      color: var(--ink);
+      font-family: "IBM Plex Sans KR", system-ui, sans-serif;
+    }
+
+    body {
+      height: 100dvh;
+      display: grid;
+      place-items: center;
+      background: #0b1018;
+    }
+
+    .app {
+      position: relative;
+      z-index: 1;
+      width: 100%;
+      height: 100dvh;
+      padding: 6px 10px 8px;
+      display: grid;
+      grid-template-rows: auto minmax(0, 1fr) auto;
+      gap: 6px;
+      justify-items: center;
+    }
+
+    .title {
+      text-align: center;
+      font-family: "Black Han Sans", sans-serif;
+      font-size: clamp(1rem, 2vw, 1.35rem);
+      letter-spacing: 0.04em;
+      text-shadow: 0 2px 12px rgba(0,0,0,.45);
+      line-height: 1;
+    }
+
+    /* 가운데로 모아 배치 — 양옆으로 늘어나지 않음 */
+    .playfield {
+      min-height: 0;
+      width: fit-content;
+      max-width: 100%;
+      display: flex;
+      align-items: flex-start;
+      justify-content: center;
+      gap: 14px;
+      margin: 0 auto;
+    }
+
+    .side-col {
+      width: 124px;
+      flex: 0 0 124px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .side-col.hold { align-self: flex-start; }
+
+    .panel-label {
+      text-align: center;
+      font-family: "Black Han Sans", sans-serif;
+      font-size: 1.05rem;
+      letter-spacing: 0.18em;
+      color: #fff;
+      text-shadow: 0 1px 6px rgba(0,0,0,.5);
+    }
+
+    .panel {
+      position: relative;
+      background: rgba(0, 0, 0, 0.42);
+      border: 2px solid #fff;
+      box-shadow: 0 8px 24px rgba(0,0,0,.35);
+      display: grid;
+      place-items: center;
+      padding: 8px;
+    }
+
+    .panel-hold {
+      width: 100%;
+      height: 108px;
+      clip-path: polygon(0 0, 100% 0, 100% calc(100% - 14px), calc(100% - 14px) 100%, 0 100%);
+    }
+
+    /* NEXT: 5조각이 패널을 고르게 채움 */
+    .panel-next {
+      width: 100%;
+      height: 420px;
+      padding: 6px;
+      clip-path: polygon(0 0, 100% 0, 100% 100%, 14px 100%, 0 calc(100% - 14px));
+    }
+
+    .panel-next canvas {
+      width: 100%;
+      height: 100%;
+    }
+
+    .board-col {
+      flex: 0 0 auto;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+      gap: 4px;
+    }
+
+    .canvas-wrap {
+      position: relative;
+      height: min(calc(100dvh - 118px), 720px);
+      width: auto;
+      aspect-ratio: 16 / 40;
+      background: rgba(0, 0, 0, 0.55);
+      border: 2px solid #fff;
+      box-shadow: 0 12px 40px rgba(0,0,0,.4);
+      overflow: hidden;
+    }
+
+    /* 캔버스 스케일과 무관하게 16×40 균일 격자 */
+    .canvas-wrap::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      z-index: 2;
+      pointer-events: none;
+      background-image:
+        linear-gradient(to right, rgba(255,255,255,0.14) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(255,255,255,0.14) 1px, transparent 1px);
+      background-size: calc(100% / 16) calc(100% / 40);
+      background-position: 0 0;
+    }
+
+    #game {
+      display: block;
+      width: 100%;
+      height: 100%;
+      image-rendering: pixelated;
+      touch-action: none;
+      position: relative;
+      z-index: 1;
+    }
+
+    .score-line {
+      text-align: center;
+      font-family: "Black Han Sans", sans-serif;
+      font-size: clamp(1.35rem, 3vw, 1.9rem);
+      letter-spacing: 0.04em;
+      text-shadow: 0 2px 10px rgba(0,0,0,.55);
+      line-height: 1;
+      color: #fff;
+      display: flex;
+      align-items: baseline;
+      justify-content: center;
+      gap: 10px;
+    }
+
+    .score-line .level {
+      font-size: 0.55em;
+      letter-spacing: 0.08em;
+      opacity: 0.95;
+    }
+
+    .meta {
+      display: flex;
+      gap: 12px;
+      justify-content: center;
+      align-items: center;
+      color: var(--muted);
+      font-size: 0.68rem;
+    }
+
+    .meta strong { color: #fff; font-weight: 600; }
+
+    .player-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .player-chip button {
+      padding: 4px 8px;
+      font-size: 0.7rem;
+    }
+
+    #hold, #next {
+      display: block;
+      width: 100%;
+      height: auto;
+      max-height: 100%;
+      image-rendering: pixelated;
+    }
+
+    .overlay {
+      position: absolute;
+      inset: 0;
+      z-index: 5; /* 격자(::after z-index:2) 위 */
+      display: grid;
+      place-items: center;
+      background: rgba(4, 8, 14, 0.72);
+      backdrop-filter: blur(3px);
+      opacity: 0;
+      visibility: hidden;
+      pointer-events: none;
+      transition: opacity 180ms ease, visibility 180ms ease;
+      text-align: center;
+      padding: 14px;
+    }
+
+    .overlay.show {
+      opacity: 1;
+      visibility: visible;
+      pointer-events: auto;
+    }
+
+    .overlay h2 {
+      font-family: "Black Han Sans", sans-serif;
+      font-size: 1.5rem;
+      margin-bottom: 6px;
+    }
+
+    .overlay p {
+      color: var(--muted);
+      margin-bottom: 12px;
+      font-size: 0.88rem;
+    }
+
+    .login-form {
+      display: grid;
+      gap: 8px;
+      justify-items: center;
+      width: min(230px, 100%);
+      margin: 0 auto;
+    }
+
+    .login-form label { color: var(--muted); font-size: 0.8rem; }
+
+    .login-form input {
+      width: 100%;
+      padding: 10px 12px;
+      border-radius: 8px;
+      border: 1px solid rgba(255,255,255,0.28);
+      background: rgba(0,0,0,0.45);
+      color: var(--ink);
+      font: 500 0.95rem "IBM Plex Sans KR", system-ui, sans-serif;
+      outline: none;
+    }
+
+    .login-form .error {
+      color: #ff7b7b;
+      font-size: 0.78rem;
+      min-height: 1.1em;
+    }
+
+    button {
+      appearance: none;
+      border: 1px solid rgba(255,255,255,0.45);
+      background: linear-gradient(180deg, rgba(94,231,255,0.28), rgba(94,231,255,0.08));
+      color: var(--ink);
+      font: 600 0.85rem "IBM Plex Sans KR", system-ui, sans-serif;
+      border-radius: 8px;
+      padding: 10px 16px;
+      cursor: pointer;
+      user-select: none;
+      touch-action: manipulation;
+    }
+
+    button:active { transform: translateY(1px) scale(0.98); }
+    button.ghost {
+      background: rgba(255,255,255,0.08);
+      border-color: rgba(255,255,255,0.28);
+    }
+
+    .controls {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 5px;
+      width: min(420px, 100%);
+      margin: 0 auto;
+    }
+
+    .controls button.wide { grid-column: span 2; }
+    .controls button {
+      padding: 7px 6px;
+      font-size: 0.72rem;
+    }
+
+    @media (min-width: 900px) {
+      .controls { display: none; }
+      .canvas-wrap { height: min(calc(100dvh - 78px), 760px); }
+    }
+
+    @media (max-width: 700px) {
+      .playfield { gap: 8px; }
+      .side-col { width: 96px; flex-basis: 96px; }
+      .panel-label { font-size: 0.72rem; letter-spacing: 0.12em; }
+      .panel-hold { height: 88px; }
+      .panel-next { height: 320px; }
+      .canvas-wrap { height: min(calc(100dvh - 150px), 560px); }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <div class="title">가루 테트리스</div>
+
+    <div class="playfield">
+      <aside class="side-col hold" aria-label="저장">
+        <div class="panel-label">HOLD</div>
+        <div class="panel panel-hold"><canvas id="hold" width="180" height="140"></canvas></div>
+      </aside>
+
+      <section class="board-col">
+        <div class="canvas-wrap">
+          <canvas id="game" width="512" height="1280" aria-label="가루 테트리스 플레이 화면"></canvas>
+          <div class="overlay show" id="overlay">
+            <div id="loginPanel">
+              <h2>입장하기</h2>
+              <p>닉네임만 입력하면 바로 플레이할 수 있어요.</p>
+              <form class="login-form" id="loginForm" autocomplete="username">
+                <label for="nickInput">닉네임</label>
+                <input id="nickInput" name="nickname" type="text" maxlength="12" placeholder="예: 가루왕" required />
+                <div class="error" id="loginError" aria-live="polite"></div>
+                <button type="submit" id="loginBtn">로그인</button>
+              </form>
+            </div>
+            <div id="playPanel" hidden>
+              <h2 id="overlayTitle">가루 테트리스</h2>
+              <p id="overlayMsg">색으로 양쪽 벽을 이어보세요.</p>
+              <button type="button" id="startBtn">시작하기</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="score-line">
+          <div id="score">0</div>
+          <span class="level" id="level">1</span>
+        </div>
+        <div class="meta">
+          <span>CLEAR <strong id="clears">0</strong></span>
+          <span class="player-chip">
+            <span id="playerName">게스트</span>
+            <button type="button" class="ghost" id="logoutBtn" hidden>로그아웃</button>
+          </span>
+        </div>
+      </section>
+
+      <aside class="side-col" aria-label="다음 조각">
+        <div class="panel-label">NEXT</div>
+        <div class="panel panel-next"><canvas id="next" width="220" height="520"></canvas></div>
+      </aside>
+    </div>
+
+    <div class="controls" aria-label="터치 조작">
+      <button type="button" data-act="left">←</button>
+      <button type="button" data-act="rotate">↻</button>
+      <button type="button" data-act="right">→</button>
+      <button type="button" data-act="soft">↓</button>
+      <button type="button" class="wide ghost" data-act="hold">HOLD (F)</button>
+      <button type="button" class="wide ghost" data-act="hard">DROP</button>
+      <button type="button" class="wide ghost" id="pauseBtn">PAUSE</button>
+    </div>
+  </div>
+
+  <script>
+(() => {
+  "use strict";
+
+  const COLS = 128;
+  const ROWS = 320;
+  const BLOCK = 8;
+  const CELL = 4;
+  // 너무 어렵지 않게: 좌우 연결 + 열 커버는 유지하되 두께 요구는 완화
+  const MIN_CLEAR = COLS * 2; // 열당 평균 2알 정도
+  const MIN_COL_COVER = COLS;
+  const NEXT_COUNT = 5;
+  const DROP_START_MS = 950;
+  const DROP_STEP_MS = 35;
+  const DROP_MIN_MS = 240;
+  const CLEARS_PER_LEVEL = 5;
+
+  // 핑크 / 보라 / 레드 / 초록 / 파랑 — 5색만
+  const PALETTE = [
+    { fill: "#ff5ba8", light: "#ffb3d6", dark: "#a01858" }, // 핑크
+    { fill: "#9b5cff", light: "#d4b3ff", dark: "#4a18a0" }, // 보라
+    { fill: "#ff3b4a", light: "#ff9aa3", dark: "#9a1020" }, // 레드
+    { fill: "#2ecc71", light: "#a8f0c4", dark: "#0d8a38" }, // 초록
+    { fill: "#3b82f6", light: "#a5c8ff", dark: "#1638a8" }, // 파랑
+  ];
+
+  const SHAPES = {
+    I: [[[0,1],[1,1],[2,1],[3,1]], [[2,0],[2,1],[2,2],[2,3]], [[0,2],[1,2],[2,2],[3,2]], [[1,0],[1,1],[1,2],[1,3]]],
+    O: [[[1,0],[2,0],[1,1],[2,1]], [[1,0],[2,0],[1,1],[2,1]], [[1,0],[2,0],[1,1],[2,1]], [[1,0],[2,0],[1,1],[2,1]]],
+    T: [[[0,1],[1,1],[2,1],[1,0]], [[1,0],[1,1],[1,2],[2,1]], [[0,1],[1,1],[2,1],[1,2]], [[1,0],[1,1],[1,2],[0,1]]],
+    S: [[[1,0],[2,0],[0,1],[1,1]], [[1,0],[1,1],[2,1],[2,2]], [[1,1],[2,1],[0,2],[1,2]], [[0,0],[0,1],[1,1],[1,2]]],
+    Z: [[[0,0],[1,0],[1,1],[2,1]], [[2,0],[1,1],[2,1],[1,2]], [[0,1],[1,1],[1,2],[2,2]], [[1,0],[0,1],[1,1],[0,2]]],
+    J: [[[0,0],[0,1],[1,1],[2,1]], [[1,0],[2,0],[1,1],[1,2]], [[0,1],[1,1],[2,1],[2,2]], [[1,0],[1,1],[0,2],[1,2]]],
+    L: [[[2,0],[0,1],[1,1],[2,1]], [[1,0],[1,1],[1,2],[2,2]], [[0,1],[1,1],[2,1],[0,2]], [[0,0],[1,0],[1,1],[1,2]]],
+  };
+  const TYPES = Object.keys(SHAPES);
+
+  const canvas = document.getElementById("game");
+  const ctx = canvas.getContext("2d");
+  const nextCanvas = document.getElementById("next");
+  const nextCtx = nextCanvas.getContext("2d");
+  const holdCanvas = document.getElementById("hold");
+  const holdCtx = holdCanvas.getContext("2d");
+  const NICK_KEY = "powder-tetris-nickname";
+  const overlay = document.getElementById("overlay");
+  const loginPanel = document.getElementById("loginPanel");
+  const playPanel = document.getElementById("playPanel");
+  const loginForm = document.getElementById("loginForm");
+  const nickInput = document.getElementById("nickInput");
+  const loginError = document.getElementById("loginError");
+  const overlayTitle = document.getElementById("overlayTitle");
+  const overlayMsg = document.getElementById("overlayMsg");
+  const startBtn = document.getElementById("startBtn");
+  const pauseBtn = document.getElementById("pauseBtn");
+  const logoutBtn = document.getElementById("logoutBtn");
+  const playerNameEl = document.getElementById("playerName");
+  const scoreEl = document.getElementById("score");
+  const clearsEl = document.getElementById("clears");
+  const levelEl = document.getElementById("level");
+
+  canvas.width = COLS * CELL;
+  canvas.height = ROWS * CELL;
+
+  let nickname = loadNickname();
+  let grid = createGrid();
+  let bag = [];
+  let colorBag = [];
+  let current = null;
+  /** @type {{type:string,color:number}[]} */
+  let nextQueue = [];
+  /** @type {null|{type:string,color:number}} */
+  let holdSlot = null;
+  let canHold = true;
+  let score = 0;
+  let clears = 0;
+  let level = 1;
+  let dropMs = DROP_START_MS;
+  let dropAcc = 0;
+  let lastTs = 0;
+  let running = false;
+  let paused = false;
+  let gameOver = false;
+  let settling = false;
+  let flashCells = [];
+  let dust = [];
+
+  function loadNickname() {
+    try { return (localStorage.getItem(NICK_KEY) || "").trim().slice(0, 12); }
+    catch { return ""; }
+  }
+  function saveNickname(name) {
+    try { localStorage.setItem(NICK_KEY, name); } catch { /* ignore */ }
+  }
+  function clearNickname() {
+    try { localStorage.removeItem(NICK_KEY); } catch { /* ignore */ }
+  }
+  function normalizeNick(raw) {
+    return String(raw || "").replace(/\s+/g, " ").trim().slice(0, 12);
+  }
+  function escapeHtml(s) {
+    return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+  }
+
+  function showLogin() {
+    nickname = "";
+    running = false; paused = false; gameOver = false; current = null;
+    loginPanel.hidden = false;
+    playPanel.hidden = true;
+    logoutBtn.hidden = true;
+    playerNameEl.textContent = "게스트";
+    loginError.textContent = "";
+    nickInput.value = "";
+    overlay.classList.add("show");
+    setTimeout(() => nickInput.focus(), 40);
+  }
+
+  function showPlayReady() {
+    loginPanel.hidden = true;
+    playPanel.hidden = false;
+    logoutBtn.hidden = false;
+    playerNameEl.textContent = nickname;
+    overlayTitle.textContent = "READY";
+    overlayMsg.innerHTML = `<strong>${escapeHtml(nickname)}</strong>님, 시작할까요?`;
+    startBtn.textContent = "시작하기";
+    overlay.classList.add("show");
+  }
+
+  function requireLogin() {
+    if (!nickname) { showLogin(); return false; }
+    return true;
+  }
+
+  function createGrid() {
+    return Array.from({ length: COLS * ROWS }, () => null);
+  }
+  function idx(x, y) { return y * COLS + x; }
+  function inBounds(x, y) { return x >= 0 && x < COLS && y >= 0 && y < ROWS; }
+
+  function takeFromBag() {
+    if (bag.length === 0) {
+      bag = TYPES.slice();
+      for (let i = bag.length - 1; i > 0; i--) {
+        const j = (Math.random() * (i + 1)) | 0;
+        [bag[i], bag[j]] = [bag[j], bag[i]];
+      }
+    }
+    return bag.pop();
+  }
+
+  function takeColor() {
+    if (colorBag.length === 0) {
+      colorBag = [0, 1, 2, 3, 4, 0, 1, 2, 3, 4];
+      for (let i = colorBag.length - 1; i > 0; i--) {
+        const j = (Math.random() * (i + 1)) | 0;
+        [colorBag[i], colorBag[j]] = [colorBag[j], colorBag[i]];
+      }
+    }
+    return colorBag.pop();
+  }
+
+  function refillQueue() {
+    while (nextQueue.length < NEXT_COUNT) {
+      nextQueue.push({ type: takeFromBag(), color: takeColor() });
+    }
+  }
+
+  function spawn({ fromHold = false } = {}) {
+    refillQueue();
+    const next = nextQueue.shift();
+    refillQueue();
+    current = {
+      type: next.type,
+      color: next.color,
+      rot: 0,
+      x: ((COLS / BLOCK) / 2 - 2) | 0,
+      y: 0,
+    };
+    if (!fromHold) canHold = true;
+    drawNext();
+    drawHold();
+    dropAcc = 0;
+    if (collides(current, 0, 0, 0)) endGame();
+  }
+
+  function placePiece(type, color) {
+    current = {
+      type, color, rot: 0,
+      x: ((COLS / BLOCK) / 2 - 2) | 0,
+      y: 0,
+    };
+    dropAcc = 0;
+    if (collides(current, 0, 0, 0)) endGame();
+  }
+
+  function holdPiece() {
+    if (!current || settling || paused || !running || gameOver || !canHold) return;
+    const swapping = holdSlot;
+    holdSlot = { type: current.type, color: current.color };
+    canHold = false;
+    if (swapping) placePiece(swapping.type, swapping.color);
+    else { current = null; spawn({ fromHold: true }); }
+    drawHold();
+  }
+
+  function cellsOf(piece, dx = 0, dy = 0, drot = 0) {
+    const rot = (piece.rot + drot + 4) % 4;
+    return SHAPES[piece.type][rot].map(([bx, by]) => ({
+      x: (piece.x + bx + dx) * BLOCK,
+      y: (piece.y + by + dy) * BLOCK,
+    }));
+  }
+
+  function collides(piece, dx, dy, drot) {
+    for (const c of cellsOf(piece, dx, dy, drot)) {
+      for (let gy = 0; gy < BLOCK; gy++) {
+        for (let gx = 0; gx < BLOCK; gx++) {
+          const x = c.x + gx, y = c.y + gy;
+          if (!inBounds(x, y) || grid[idx(x, y)]) return true;
+        }
+      }
+    }
+    return false;
+  }
+
+  function lockPiece() {
+    if (!current) return;
+    const color = current.color;
+    const fill = PALETTE[color].fill;
+    for (const c of cellsOf(current)) {
+      for (let gy = 0; gy < BLOCK; gy++) {
+        for (let gx = 0; gx < BLOCK; gx++) {
+          const x = c.x + gx, y = c.y + gy;
+          if (inBounds(x, y)) grid[idx(x, y)] = { color };
+        }
+      }
+      spawnDust(c.x + BLOCK / 2, c.y + BLOCK / 2, fill, 8);
+    }
+    current = null;
+    settling = true;
+  }
+
+  function spawnDust(x, y, color, n) {
+    for (let i = 0; i < n; i++) {
+      dust.push({
+        x: x * CELL + CELL / 2,
+        y: y * CELL + CELL / 2,
+        vx: (Math.random() - 0.5) * 2.4,
+        vy: -Math.random() * 2.2 - 0.4,
+        life: 1,
+        color,
+      });
+    }
+  }
+
+  function stepPowder(passes = 2, allowDiagonal = true) {
+    let moved = false;
+    for (let p = 0; p < passes; p++) {
+      for (let y = ROWS - 2; y >= 0; y--) {
+        const leftFirst = ((y + p) & 1) === 0;
+        for (let i = 0; i < COLS; i++) {
+          const x = leftFirst ? i : COLS - 1 - i;
+          const cell = grid[idx(x, y)];
+          if (!cell) continue;
+          const tryMove = (nx, ny) => {
+            if (!inBounds(nx, ny) || grid[idx(nx, ny)]) return false;
+            grid[idx(nx, ny)] = cell;
+            grid[idx(x, y)] = null;
+            moved = true;
+            return true;
+          };
+          if (tryMove(x, y + 1)) continue;
+          if (!allowDiagonal) continue;
+          const dir = Math.random() < 0.5 ? -1 : 1;
+          const canSlide = (nx) => {
+            const ny = y + 1;
+            if (!inBounds(nx, ny) || grid[idx(nx, ny)]) return false;
+            const below = ny + 1;
+            const supported = below >= ROWS || !!grid[idx(nx, below)];
+            return supported && tryMove(nx, ny);
+          };
+          if (canSlide(x + dir)) continue;
+          canSlide(x - dir);
+        }
+      }
+    }
+    return moved;
+  }
+
+  function clearBridges() {
+    const visited = new Uint8Array(COLS * ROWS);
+    let totalRemoved = 0;
+    const removedColors = new Set();
+
+    for (let y = 0; y < ROWS; y++) {
+      const start = grid[idx(0, y)];
+      if (!start) continue;
+      const si = idx(0, y);
+      if (visited[si]) continue;
+      const color = start.color;
+      const stack = [si];
+      visited[si] = 1;
+      const component = [];
+      let touchesRight = false;
+
+      while (stack.length) {
+        const i = stack.pop();
+        component.push(i);
+        const cx = i % COLS;
+        const cy = (i / COLS) | 0;
+        if (cx === COLS - 1) touchesRight = true;
+        // 대각선 포함 → 가루 더미에서도 연결이 너무 안 끊기게
+        for (const [nx, ny] of [
+          [cx-1,cy],[cx+1,cy],[cx,cy-1],[cx,cy+1],
+          [cx-1,cy-1],[cx+1,cy-1],[cx-1,cy+1],[cx+1,cy+1],
+        ]) {
+          if (!inBounds(nx, ny)) continue;
+          const ni = idx(nx, ny);
+          if (visited[ni]) continue;
+          const n = grid[ni];
+          if (!n || n.color !== color) continue;
+          visited[ni] = 1;
+          stack.push(ni);
+        }
+      }
+
+      if (!touchesRight || component.length < MIN_CLEAR) continue;
+
+      // 모든 열을 실제로 거쳐야 함 (한쪽으로만 붙고 사선으로 빠지는 가짜 다리 방지)
+      const colHit = new Uint8Array(COLS);
+      for (const i of component) colHit[i % COLS] = 1;
+      let covered = 0;
+      for (let x = 0; x < COLS; x++) if (colHit[x]) covered++;
+      if (covered < MIN_COL_COVER) continue;
+
+      removedColors.add(color);
+      const pal = PALETTE[color];
+      for (const i of component) {
+        const gx = i % COLS;
+        const gy = (i / COLS) | 0;
+        if (((gx + gy) & 3) === 0) flashCells.push({ x: gx, y: gy, life: 1, color: pal.light });
+        if (Math.random() < 0.08) spawnDust(gx, gy, pal.fill, 1);
+        grid[i] = null;
+        totalRemoved++;
+      }
+    }
+
+    if (totalRemoved > 0) {
+      clears += 1;
+      // 클리어 보상은 크게, 드롭 점수 파밍 비중은 상대적으로 작게
+      score += 500 + totalRemoved + removedColors.size * 100;
+      level = 1 + ((clears / CLEARS_PER_LEVEL) | 0);
+      dropMs = Math.max(DROP_MIN_MS, DROP_START_MS - (level - 1) * DROP_STEP_MS);
+      updateHud();
+      settling = true;
+    }
+    return totalRemoved;
+  }
+
+  function updateHud() {
+    scoreEl.textContent = score.toLocaleString("en-US");
+    clearsEl.textContent = String(clears);
+    levelEl.textContent = String(level);
+  }
+
+  function softDrop() {
+    if (!current || settling || paused || !running) return;
+    if (!collides(current, 0, 1, 0)) {
+      current.y += 1;
+      score += 1;
+      updateHud();
+    } else lockPiece();
+  }
+
+  function hardDrop() {
+    if (!current || settling || paused || !running) return;
+    let dist = 0;
+    while (!collides(current, 0, 1, 0)) { current.y += 1; dist++; }
+    score += dist;
+    updateHud();
+    lockPiece();
+  }
+
+  function move(dx) {
+    if (!current || settling || paused || !running) return;
+    if (!collides(current, dx, 0, 0)) current.x += dx;
+  }
+
+  function rotate() {
+    if (!current || settling || paused || !running) return;
+    for (const k of [0, -1, 1, -2, 2]) {
+      if (!collides(current, k, 0, 1)) {
+        current.x += k;
+        current.rot = (current.rot + 1) % 4;
+        return;
+      }
+    }
+  }
+
+  function endGame() {
+    running = false;
+    gameOver = true;
+    current = null;
+    loginPanel.hidden = true;
+    playPanel.hidden = false;
+    overlayTitle.textContent = "GAME OVER";
+    overlayMsg.innerHTML = `<strong>${escapeHtml(nickname)}</strong> · SCORE <strong>${score}</strong>`;
+    startBtn.textContent = "다시 시작";
+    overlay.classList.add("show");
+  }
+
+  function resetGame() {
+    if (!requireLogin()) return;
+    grid = createGrid();
+    bag = [];
+    colorBag = [];
+    nextQueue = [];
+    holdSlot = null;
+    canHold = true;
+    score = 0; clears = 0; level = 1;
+    dropMs = DROP_START_MS; dropAcc = 0;
+    flashCells = []; dust = [];
+    settling = false; paused = false; gameOver = false;
+    refillQueue();
+    updateHud();
+    drawHold();
+    pauseBtn.textContent = "PAUSE";
+    spawn();
+    running = true;
+    overlay.classList.remove("show");
+    lastTs = performance.now();
+  }
+
+  function togglePause() {
+    if (!running || gameOver) return;
+    paused = !paused;
+    pauseBtn.textContent = paused ? "RESUME" : "PAUSE";
+    if (paused) {
+      loginPanel.hidden = true;
+      playPanel.hidden = false;
+      overlayTitle.textContent = "PAUSE";
+      overlayMsg.textContent = "잠시 멈춤";
+      startBtn.textContent = "계속하기";
+      overlay.classList.add("show");
+    } else {
+      overlay.classList.remove("show");
+      lastTs = performance.now();
+    }
+  }
+
+  function drawGridBg() {
+    // 격자는 CSS(::after)로 그려 스케일 들쭉날쭉을 피함
+    ctx.fillStyle = "#05070c";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+  }
+
+  /** 참고 디자인: 버튼형 베벨 블록 */
+  function drawBevelCell(c, px, py, size, pal, dimmed = false) {
+    const s = size;
+    const inset = Math.max(2, (s * 0.18) | 0);
+    const mid = Math.max(2, (s * 0.28) | 0);
+    c.save();
+    if (dimmed) c.globalAlpha = 0.38;
+
+    // 본체
+    c.fillStyle = pal.fill;
+    c.fillRect(px, py, s, s);
+
+    // 상/좌 하이라이트
+    c.fillStyle = pal.light;
+    c.beginPath();
+    c.moveTo(px, py);
+    c.lineTo(px + s, py);
+    c.lineTo(px + s - inset, py + inset);
+    c.lineTo(px + inset, py + inset);
+    c.lineTo(px + inset, py + s - inset);
+    c.lineTo(px, py + s);
+    c.closePath();
+    c.fill();
+
+    // 하/우 쉐도우
+    c.fillStyle = pal.dark;
+    c.beginPath();
+    c.moveTo(px + s, py);
+    c.lineTo(px + s, py + s);
+    c.lineTo(px, py + s);
+    c.lineTo(px + inset, py + s - inset);
+    c.lineTo(px + s - inset, py + s - inset);
+    c.lineTo(px + s - inset, py + inset);
+    c.closePath();
+    c.fill();
+
+    // 안쪽 사각(버튼)
+    c.fillStyle = pal.fill;
+    c.fillRect(px + mid, py + mid, s - mid * 2, s - mid * 2);
+    c.strokeStyle = "rgba(0,0,0,0.25)";
+    c.lineWidth = 1;
+    c.strokeRect(px + mid + 0.5, py + mid + 0.5, s - mid * 2 - 1, s - mid * 2 - 1);
+
+    c.restore();
+  }
+
+  function drawGhost() {
+    if (!current || settling) return;
+    let gy = 0;
+    while (!collides(current, 0, gy + 1, 0)) gy++;
+    if (gy === 0) return;
+    const size = BLOCK * CELL;
+    ctx.strokeStyle = "rgba(220,220,220,0.55)";
+    ctx.lineWidth = 2;
+    for (const c of cellsOf(current, 0, gy, 0)) {
+      ctx.strokeRect(c.x * CELL + 1, c.y * CELL + 1, size - 2, size - 2);
+    }
+  }
+
+  function drawPiece() {
+    if (!current || settling) return;
+    const pal = PALETTE[current.color];
+    const size = BLOCK * CELL;
+    for (const c of cellsOf(current)) {
+      drawBevelCell(ctx, c.x * CELL, c.y * CELL, size, pal);
+    }
+  }
+
+  function drawPowder() {
+    for (let y = 0; y < ROWS; y++) {
+      for (let x = 0; x < COLS; x++) {
+        const cell = grid[idx(x, y)];
+        if (!cell) continue;
+        ctx.fillStyle = PALETTE[cell.color].fill;
+        ctx.fillRect(x * CELL, y * CELL, CELL + 0.5, CELL + 0.5);
+      }
+    }
+  }
+
+  function drawEffects(dt) {
+    flashCells = flashCells.filter((f) => {
+      f.life -= dt * 2.8;
+      if (f.life <= 0) return false;
+      ctx.globalAlpha = Math.max(0, f.life);
+      ctx.fillStyle = f.color;
+      ctx.fillRect(f.x * CELL, f.y * CELL, CELL, CELL);
+      ctx.globalAlpha = 1;
+      return true;
+    });
+    dust = dust.filter((p) => {
+      p.life -= dt * 1.6;
+      p.x += p.vx; p.y += p.vy; p.vy += 8 * dt;
+      if (p.life <= 0) return false;
+      ctx.globalAlpha = Math.max(0, p.life);
+      ctx.fillStyle = p.color;
+      ctx.fillRect(p.x, p.y, 2.5, 2.5);
+      ctx.globalAlpha = 1;
+      return true;
+    });
+  }
+
+  function shapeBounds(type) {
+    const shape = SHAPES[type][0];
+    let minX = 99, minY = 99, maxX = -99, maxY = -99;
+    for (const [x, y] of shape) {
+      minX = Math.min(minX, x); minY = Math.min(minY, y);
+      maxX = Math.max(maxX, x); maxY = Math.max(maxY, y);
+    }
+    return { shape, minX, minY, maxX, maxY, cols: maxX - minX + 1, rows: maxY - minY + 1 };
+  }
+
+  function drawMini(ctx2, canvas2, type, colorId, oy, size, dimmed = false) {
+    if (type == null) return 0;
+    const b = shapeBounds(type);
+    const pal = PALETTE[colorId];
+    const w = b.cols * size;
+    const h = b.rows * size;
+    const px0 = ((canvas2.width - w) / 2) | 0;
+    for (const [x, y] of b.shape) {
+      drawBevelCell(
+        ctx2,
+        px0 + (x - b.minX) * size,
+        oy + (y - b.minY) * size,
+        size - 1,
+        pal,
+        dimmed
+      );
+    }
+    return h;
+  }
+
+  function drawNext() {
+    nextCtx.clearRect(0, 0, nextCanvas.width, nextCanvas.height);
+    const n = nextQueue.length || NEXT_COUNT;
+    const padX = 8;
+    const padY = 6;
+    const slotH = (nextCanvas.height - padY * 2) / n;
+    const maxCellW = ((nextCanvas.width - padX * 2) / 4) | 0; // I가로 4칸 기준
+    const maxCellH = ((slotH - 4) / 3) | 0; // 세로로 긴 조각 여유
+    const size = Math.max(16, Math.min(maxCellW, maxCellH, 36));
+
+    nextQueue.forEach((item, i) => {
+      const b = shapeBounds(item.type);
+      const h = b.rows * size;
+      const oy = (padY + i * slotH + (slotH - h) / 2) | 0;
+      drawMini(nextCtx, nextCanvas, item.type, item.color, oy, size);
+    });
+  }
+
+  function drawHold() {
+    holdCtx.clearRect(0, 0, holdCanvas.width, holdCanvas.height);
+    if (!holdSlot) return;
+    const b = shapeBounds(holdSlot.type);
+    const pad = 8;
+    const size = Math.max(
+      18,
+      Math.min(
+        ((holdCanvas.width - pad * 2) / 4) | 0,
+        ((holdCanvas.height - pad * 2) / Math.max(b.rows, 2)) | 0,
+        32
+      )
+    );
+    const h = b.rows * size;
+    const oy = Math.max(pad, ((holdCanvas.height - h) / 2) | 0);
+    drawMini(holdCtx, holdCanvas, holdSlot.type, holdSlot.color, oy, size, !canHold);
+  }
+
+  function frame(ts) {
+    const dt = Math.min(0.05, (ts - lastTs) / 1000 || 0);
+    lastTs = ts;
+
+    if (running && !paused) {
+      if (settling) {
+        let moved = stepPowder(4, false);
+        if (!moved) moved = stepPowder(3, true);
+        if (!moved) {
+          const removed = clearBridges();
+          if (removed === 0) {
+            const still = stepPowder(3, true);
+            if (!still) {
+              settling = false;
+              if (!current) spawn();
+            }
+          } else stepPowder(4, false);
+        }
+      } else if (current) {
+        dropAcc += dt * 1000;
+        while (dropAcc >= dropMs) {
+          dropAcc -= dropMs;
+          if (!collides(current, 0, 1, 0)) current.y += 1;
+          else { lockPiece(); break; }
+        }
+      }
+    }
+
+    drawGridBg();
+    drawPowder();
+    drawGhost();
+    drawPiece();
+    drawEffects(dt);
+    requestAnimationFrame(frame);
+  }
+
+  const keysDown = new Set();
+  let repeatTimer = null;
+  function bindRepeat(name, fn) {
+    fn();
+    clearTimeout(repeatTimer);
+    clearInterval(repeatTimer);
+    repeatTimer = setTimeout(() => { repeatTimer = setInterval(fn, 55); }, 180);
+  }
+  function clearRepeat() {
+    clearTimeout(repeatTimer);
+    clearInterval(repeatTimer);
+    repeatTimer = null;
+  }
+
+  window.addEventListener("keydown", (e) => {
+    const key = e.key;
+    if (["ArrowLeft","ArrowRight","ArrowDown","ArrowUp"," "].includes(key)) e.preventDefault();
+    if (key === "p" || key === "P" || key === "Escape") { if (running) togglePause(); return; }
+    if (!running || paused || gameOver) return;
+    if (key === "ArrowLeft" || key === "a" || key === "A") {
+      if (!keysDown.has("left")) { keysDown.add("left"); bindRepeat("left", () => move(-1)); }
+    } else if (key === "ArrowRight" || key === "d" || key === "D") {
+      if (!keysDown.has("right")) { keysDown.add("right"); bindRepeat("right", () => move(1)); }
+    } else if (key === "ArrowDown" || key === "s" || key === "S") {
+      if (!keysDown.has("soft")) { keysDown.add("soft"); softDrop(); bindRepeat("soft", softDrop); }
+    } else if (key === "ArrowUp" || key === "x" || key === "X" || key === "w" || key === "W") {
+      rotate();
+    } else if (key === " ") hardDrop();
+    else if (key === "f" || key === "F") { e.preventDefault(); holdPiece(); }
+  });
+
+  window.addEventListener("keyup", (e) => {
+    const key = e.key;
+    if (key === "ArrowLeft" || key === "a" || key === "A") keysDown.delete("left");
+    if (key === "ArrowRight" || key === "d" || key === "D") keysDown.delete("right");
+    if (key === "ArrowDown" || key === "s" || key === "S") keysDown.delete("soft");
+    if (keysDown.size === 0) clearRepeat();
+  });
+
+  document.querySelectorAll("[data-act]").forEach((btn) => {
+    const act = btn.getAttribute("data-act");
+    const run = () => {
+      if (act === "left") move(-1);
+      if (act === "right") move(1);
+      if (act === "rotate") rotate();
+      if (act === "soft") softDrop();
+      if (act === "hard") hardDrop();
+      if (act === "hold") holdPiece();
+    };
+    btn.addEventListener("pointerdown", (e) => {
+      e.preventDefault();
+      if (act === "left" || act === "right" || act === "soft") {
+        keysDown.add(act); bindRepeat(act, run);
+      } else run();
+    });
+    const up = () => { keysDown.delete(act); if (keysDown.size === 0) clearRepeat(); };
+    btn.addEventListener("pointerup", up);
+    btn.addEventListener("pointerleave", up);
+    btn.addEventListener("pointercancel", up);
+  });
+
+  let startLockUntil = 0;
+  function onStartAction(e) {
+    if (e) e.preventDefault();
+    if (!nickname) { showLogin(); return; }
+    const now = performance.now();
+    if (now < startLockUntil) return;
+    startLockUntil = now + 280;
+    if (paused && running) { togglePause(); return; }
+    resetGame();
+  }
+  startBtn.addEventListener("pointerup", onStartAction);
+  startBtn.addEventListener("click", onStartAction);
+
+  pauseBtn.addEventListener("click", () => {
+    if (!requireLogin()) return;
+    if (!running) { resetGame(); return; }
+    togglePause();
+  });
+
+  loginForm.addEventListener("submit", (e) => {
+    e.preventDefault();
+    const name = normalizeNick(nickInput.value);
+    if (!name) { loginError.textContent = "닉네임을 입력해 주세요."; nickInput.focus(); return; }
+    nickname = name;
+    saveNickname(nickname);
+    loginError.textContent = "";
+    showPlayReady();
+  });
+
+  logoutBtn.addEventListener("click", () => {
+    running = false; paused = false; gameOver = false; current = null;
+    clearNickname();
+    showLogin();
+  });
+
+  refillQueue();
+  drawGridBg();
+  drawNext();
+  drawHold();
+  updateHud();
+  if (nickname) {
+    playerNameEl.textContent = nickname;
+    showPlayReady();
+  } else showLogin();
+  requestAnimationFrame(frame);
+})();
+  </script>
+</body>
+</html>
